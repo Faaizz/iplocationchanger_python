@@ -1,0 +1,8 @@
+*.ipynb
+*.pyc
+*.venv
+*.egg-info
+assets
+dist
+
+.coverage

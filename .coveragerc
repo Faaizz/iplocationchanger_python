@@ -1,0 +1,7 @@
+[run]
+source = 
+  src/iplocationchanger
+omit = 
+  *__main__.py
+  *__init__.py
+  src/iplocationchanger/tests/*
