@@ -81,7 +81,7 @@ def main(args: argparse.Namespace):
     args.api_key,
     config_to_country_map,
     args.openvpn,
-    credentials_path=ovnc_path,
+    openvpn_credentials_path=ovnc_path,
   )
   atexit.register(lcs.disconnect_region)
 
