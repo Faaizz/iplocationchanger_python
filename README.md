@@ -69,7 +69,8 @@ coverage report -m
 ```
 
 ## Config
-Sample config file:
+Config files are JSON-formatted files with 2-letter [ISO 3166](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) country codes as `keys` and paths to corresponding OpenVPN configuration files as `values`.
+A sample config file is shown below:
 ```json
 {
   "TR": "/assets/NCVPN-TR-Istanbul-TCP.ovpn",
