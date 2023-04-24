@@ -5,6 +5,7 @@ import atexit
 
 from iplocationchanger.model.openvpn_credentials import OpenVPNCredentials
 from iplocationchanger.service.location_changer_service import LocationChangerService
+from iplocationchanger.exception.location_changer_service_exception import LocationChangerServiceException
 
 parser = argparse.ArgumentParser(
   prog = 'iplocationchanger',
@@ -85,9 +86,10 @@ def main(args: argparse.Namespace):
   )
   atexit.register(lcs.disconnect_region)
 
-  success, msg = lcs.connect_region(args.country)
-  if not success:
-    logging.error(msg)
+  try:
+    lcs.connect_region(args.country)
+  except LocationChangerServiceException as e:
+    logging.error(e)
     exit(1)
   # Keep running
   logging.info(f'connected to {args.country}')

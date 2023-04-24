@@ -5,6 +5,9 @@ import time
 
 from iplocationchanger.service.openvpn_service import OpenVPNService
 from iplocationchanger.service.whatismyip_service import WhatIsMyIPService
+from iplocationchanger.exception.location_changer_service_exception import LocationChangerServiceException
+from iplocationchanger.exception.whatismyip_service_exception import WhatIsMyIPServiceException
+from iplocationchanger.exception.openvpn_service_exception import OpenVPNServiceException
 
 logger = logging.getLogger(__name__)
 
@@ -38,19 +41,24 @@ class LocationChangerService:
 
   def disconnect_region(
     self: LocationChangerService,
-  ) -> tuple[bool, str]:
-    logger.info('disconnecting...')
-    success, stdout, stderr = self.ovs.disconnect()
-    return success, (stdout + stderr)
+  ) -> None:
+    logger.debug('disconnecting...')
+    self.ovs.disconnect()
 
   def connect_region(
     self: LocationChangerService,
     country: str,
     OPENVPN_DELAY: int = 5,
-  ) -> tuple[bool, str]:
-    logger.info(f'connecting to {country}...')
-    success, stdout, stderr = self.ovs.connect(country)
+  ) -> None:
+    logger.debug(f'connecting to {country}...')
+    try:
+      self.ovs.connect(country)
+    except OpenVPNServiceException as e:
+      raise LocationChangerServiceException(f'Could not connect to {country}') from e
     # buy openvpn some time
     time.sleep(OPENVPN_DELAY)
-    valid_connection, out = self.wms.validate_connection(country)
-    return (success and valid_connection), (stdout + stderr + out)
+    try:
+      self.wms.validate_connection(country)
+    except WhatIsMyIPServiceException as e:
+      raise LocationChangerServiceException(f'Could not connect to {country}') from e
+    logger.debug(f'connected to {country}')

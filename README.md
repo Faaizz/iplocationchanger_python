@@ -6,6 +6,8 @@ This package allows changing the IP of the host machine by using openvpn configu
 ## Usage
 ```python
 from iplocationchanger.service.location_changer_service import LocationChangerService
+from iplocationchanger.exception.location_changer_service_exception import LocationChangerServiceException
+
 
 try:
   lcs = LocationChangerService(
@@ -18,13 +20,14 @@ try:
   )
 
   country = 'TR'
-  success, msg = lcs.connect_region(country)
-  if not success:
-    logging.error(msg)
-    raise Exception(
-      f'could not connect location: {country}. {msg}.'
-    )
-  # Other code logic
+  try:
+    lcs.connect_region(country)
+    # Other code logic...
+
+  except LocationChangerServiceException as e:
+    # locaiton change failed
+    logging.error(e)
+    exit(1)
 finally:
   lcs.disconnect_region()
 ```

@@ -1,4 +1,4 @@
 from iplocationchanger.exception.iplocationchanger_exception import IPLocationChangerException
 
-class WhatIsMyIPResponseException (IPLocationChangerException):
+class WhatIsMyIPServiceException (IPLocationChangerException):
   pass
