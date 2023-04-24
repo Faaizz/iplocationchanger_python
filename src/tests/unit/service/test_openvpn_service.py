@@ -4,6 +4,7 @@ from unittest.mock import patch
 from unittest.mock import Mock
 
 from iplocationchanger.service.openvpn_service import OpenVPNService
+from iplocationchanger.exception.openvpn_service_exception import OpenVPNServiceException
 
 class TestOpenVPNService(unittest.TestCase):
   def test_has_credentials(self):
@@ -51,24 +52,11 @@ class TestOpenVPNService(unittest.TestCase):
         tc['stderr'],
       ))
 
-      success, stdout, stderr = ovs.disconnect()
+      ovs.disconnect()
 
       UtilsMock.run_proc.assert_called_once_with(
         ['sudo', 'killall', 'openvpn'],
         expect_error = True,
-      )
-
-      self.assertEqual(
-        success,
-        tc['expected'],
-      )
-      self.assertEqual(
-        stdout,
-        tc['stdout'],
-      )
-      self.assertEqual(
-        stderr,
-        tc['stderr'],
       )
 
   @patch('iplocationchanger.service.openvpn_service.Utils')
@@ -78,13 +66,42 @@ class TestOpenVPNService(unittest.TestCase):
       'sample country 2': '/path/to/config/2.ovpn',
       'sample country 3': '/path/to/config/3.ovpn',
     }
+
+    test_cases_valid = [
+      {
+        'openvpn_executable': 'usr/bin/openvpn',
+        'openvpn_daemon_name': 'openvpn_iplocationchanger',
+        'config_path': '/path/to/config2.ovpn',
+        'country': 'BR',
+        'credentials_path': 'path/to/credentials',
+        'has_credentials': True,
+        'success': True,
+        'expected': True,
+        'stdout': '',
+        'stderr': '',
+        'case_name': 'Success, with credentials',
+      },
+      {
+        'openvpn_executable': 'usr/bin/openvpn',
+        'openvpn_daemon_name': 'openvpn_iplocationchanger',
+        'config_path': '/path/to/config3.ovpn',
+        'country': 'US',
+        'credentials_path': '',
+        'has_credentials': False,
+        'success': True,
+        'expected': True,
+        'stdout': '',
+        'stderr': '',
+        'case_name': 'Success, without credentials',
+      },
+    ]
     
-    test_cases = [
+    test_cases_invalid = [
       {
         'openvpn_executable': 'usr/bin/openvpn',
         'openvpn_daemon_name': 'openvpn_iplocationchanger',
         'config_path': '',
-        'country': '',
+        'country': 'BR',
         'credentials_path': 'path/to/credentials',
         'has_credentials': True,
         'success': True,
@@ -97,7 +114,7 @@ class TestOpenVPNService(unittest.TestCase):
         'openvpn_executable': 'usr/bin/openvpn',
         'openvpn_daemon_name': 'openvpn_iplocationchanger',
         'config_path': '/path/to/config1.ovpn',
-        'country': 'country name 1',
+        'country': 'AR',
         'credentials_path': 'path/to/credentials',
         'has_credentials': True,
         'success': False,
@@ -106,35 +123,9 @@ class TestOpenVPNService(unittest.TestCase):
         'stderr': 'could not connect',
         'case_name': 'Failed, with config',
       },
-      {
-        'openvpn_executable': 'usr/bin/openvpn',
-        'openvpn_daemon_name': 'openvpn_iplocationchanger',
-        'config_path': '/path/to/config2.ovpn',
-        'country': 'country name 2',
-        'credentials_path': 'path/to/credentials',
-        'has_credentials': True,
-        'success': True,
-        'expected': True,
-        'stdout': '',
-        'stderr': 'no config for specified country',
-        'case_name': 'Success, with credentials',
-      },
-      {
-        'openvpn_executable': 'usr/bin/openvpn',
-        'openvpn_daemon_name': 'openvpn_iplocationchanger',
-        'config_path': '/path/to/config3.ovpn',
-        'country': 'country name 3',
-        'credentials_path': '',
-        'has_credentials': False,
-        'success': True,
-        'expected': True,
-        'stdout': '',
-        'stderr': 'no config for specified country',
-        'case_name': 'Success, without credentials',
-      },
     ]
 
-    for tc in test_cases:
+    for tc in test_cases_valid:
       if len(tc['country']) != 0:
         config_to_country[tc['country']] = tc['config_path']
 
@@ -150,7 +141,7 @@ class TestOpenVPNService(unittest.TestCase):
         tc['stderr'],
       ))
 
-      success, stdout, stderr = ovs.connect(tc['country'])
+      ovs.connect(tc['country'])
 
       if len(tc['country']) != 0:
         run_proc_args = [
@@ -169,16 +160,20 @@ class TestOpenVPNService(unittest.TestCase):
           run_proc_args,
         )
 
-      self.assertEqual(
-        success,
-        tc['expected'],
+
+    for tc in test_cases_invalid:
+      config_to_country = {}
+      ovs = OpenVPNService(
+        config_to_country, 
+        tc['openvpn_executable'],
+        tc['credentials_path'],
       )
-      self.assertEqual(
-        stdout,
+
+      UtilsMock.run_proc = Mock(return_value=(
+        tc['success'],
         tc['stdout'],
-      )
-      self.assertEqual(
-        stderr,
         tc['stderr'],
-      )
-  
+      ))
+
+      with self.assertRaises(OpenVPNServiceException, msg=tc['case_name']):
+        ovs.connect(tc['country'])

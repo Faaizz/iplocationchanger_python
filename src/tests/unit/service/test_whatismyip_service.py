@@ -2,184 +2,287 @@ import unittest
 
 from unittest.mock import patch
 from unittest.mock import Mock
+from unittest.mock import PropertyMock
 
 from iplocationchanger.service.whatismyip_service import WhatIsMyIPService
+from iplocationchanger.exception.whatismyip_service_exception import WhatIsMyIPServiceException
 
 class TestWhatsIsMyIpService(unittest.TestCase):
-  @patch('iplocationchanger.service.whatismyip_service.Utils')
-  def test_get_ip(self, UtilsMock):
+  def test_check_request_error(self):
     test_cases = [
       {
-        'success': True,
-        'expected': True,
-        'out': 'standard output',
-        'api_key': 'apikeyisthisstring',
+        'expects_exception': True,
+        'expected_msg': 'API key was not entered',
+        'response': '0',
       },
       {
-        'success': False,
-        'expected': False,
-        'out': 'a big error has occurred',
-        'api_key': 'apikeyisthisstring',
+        'expects_exception': True,
+        'expected_msg': 'API key is invalid',
+        'response': '1',
       },
+      {
+        'expects_exception': True,
+        'expected_msg': 'API key is inactive',
+        'response': '2',
+      },
+      {
+        'expects_exception': True,
+        'expected_msg': 'Too many lookups',
+        'response': '3',
+      },
+      {
+        'expects_exception': True,
+        'expected_msg': 'No input',
+        'response': '4',
+      },
+      {
+        'expects_exception': True,
+        'expected_msg': 'Invalid input',
+        'response': '5',
+      },
+      {
+        'expects_exception': True,
+        'expected_msg': 'Unknown error',
+        'response': '6',
+      },
+      {
+        'expects_exception': False,
+        'expected_msg': '',
+        'response': '{"ip_address":"95.223.119.45"}',
+      },
+      {
+        'expects_exception': False,
+        'expected_msg': '',
+        'response': '{ "ip_address_lookup": [{"status":"ok","ip":"95.223.119.45","asn":"3209","country":"DE","region":"Pessen","city":"Main","postalcode":"55931","isp":"An ISP","time":"+02:00","latitude":"50.110882","longitude":"8.681996"}]}',
+      }
     ]
 
     for tc in test_cases:
-      UtilsMock.exec_get_request = Mock(return_value=(
-        tc['success'],
-        tc['out'],
-      ))
+      ws = WhatIsMyIPService('apikeyisthisstring')
+      if tc['expects_exception']:
+        with self.assertRaises(WhatIsMyIPServiceException):
+          ws.check_request_error(tc['response'])
+      else:
+        res = ws.check_request_error(tc['response'])
+        self.assertEqual(res, None)
 
-      wms = WhatIsMyIPService(tc['api_key'])
-      success, out = wms.get_ip()
-
-      UtilsMock.exec_get_request.assert_called_once_with(
-        f'https://api.whatismyip.com/ip.php?key={tc["api_key"]}',
-      )
-
-      self.assertEqual(
-        tc['expected'],
-        success,
-      )
-      self.assertEqual(
-        tc['out'],
-        out,
-      )
-
-  @patch('iplocationchanger.service.whatismyip_service.Utils')
-  def test_get_location_from_ip(self, UtilsMock):
+  @patch('iplocationchanger.service.whatismyip_service.requests.get')
+  @patch('iplocationchanger.service.whatismyip_service.WhatIsMyIPService.check_request_error')
+  def test_request_valid(self, MockCheckRequestError, MockRequestsGet):
+    self.maxDiff = None
+    # MockCheckRequestError: Mock object for check_request_error
     test_cases = [
       {
-        'success': True,
-        'expected': True,
-        'out': 'standard output',
-        'api_key': 'apikeyisthisstring',
-        'ip': '192.168.0.1',
+        'path': 'ip',
+        'other_params': {},
+        'request_response': b'{"ip_address":"192.168.0.1"}',
+        'expected_result': {
+          'ip_address': '192.168.0.1',
+        },
       },
       {
-        'success': False,
-        'expected': False,
-        'out': 'error occurred',
-        'api_key': 'apikeyisthisstring',
-        'ip': '192.168.0.1',
-      },
+        'path': 'ip-address-lookup',
+        'other_params': {
+          'ip': '192.168.0.1',
+        },
+        'request_response': b'{ "ip_address_lookup": [{"status":"ok","ip":"192.168.0.1","asn":"3209","country":"DE","region":"Pessen","city":"Main","postalcode":"55931","isp":"An ISP","time":"+02:00","latitude":"50.110882","longitude":"8.681996"}]}',
+        'expected_result': {
+          'ip_address_lookup': [{
+            'status': 'ok',
+            'ip': '192.168.0.1',
+            'asn': '3209',
+            'country': 'DE',
+            'region': 'Pessen',
+            'city': 'Main',
+            'postalcode': '55931',
+            'isp': 'An ISP',
+            'time': '+02:00',
+            'latitude': '50.110882',
+            'longitude': '8.681996',
+          }],
+        },
+      }
     ]
 
     for tc in test_cases:
-      UtilsMock.exec_get_request = Mock(return_value=(
-        tc['success'],
-        tc['out'],
-      ))
+      ws = WhatIsMyIPService('apikeyisthisstring')
 
-      wms = WhatIsMyIPService(tc['api_key'])
-      success, out = wms.get_location_from_ip(tc['ip'])
+      type(MockRequestsGet.return_value).content = PropertyMock(return_value=tc['request_response'])
+      type(MockRequestsGet.return_value).status_code = PropertyMock(return_value=200)
+      
+      res = ws.request(tc['path'], tc['other_params'])
 
-      UtilsMock.exec_get_request.assert_called_once_with(
-        f'https://api.whatismyip.com/ip-address-lookup.php?key={tc["api_key"]}&input={tc["ip"]}',
-      )
+      url = f'https://api.whatismyip.com/{tc["path"]}.php'
+      params = {
+        'key': 'apikeyisthisstring',
+        'output': 'json',
+        **tc['other_params'],
+      }
+      MockRequestsGet.assert_called_with(url, params=params)
+      self.assertTrue(isinstance(res, dict))
+      self.assertEqual(res, tc['expected_result'])
 
-      self.assertEqual(
-        tc['expected'],
-        success,
-      )
-      self.assertEqual(
-        tc['out'],
-        out,
-      )
 
-  @patch('iplocationchanger.service.whatismyip_service.Utils')
-  def test_validate_connection(self, UtilsMock):
-    test_cases = [
+  @patch('iplocationchanger.service.whatismyip_service.requests.get')
+  def test_request_with_exception(self, MockRequestsGet):
+    # MockCheckRequestError: Mock object for check_request_error
+    tc1 = {
+      'path': 'ip',
+      'other_params': {},
+      'request_response': b'dummy response',
+      'expected_msg': 'Could not complete request "ip".',
+    }
+    ws = WhatIsMyIPService('apikeyisthisstring')
+    type(MockRequestsGet.return_value).content = PropertyMock(return_value=tc1['request_response'])
+    type(MockRequestsGet.return_value).status_code = PropertyMock(return_value=404)
+    with self.assertRaises(WhatIsMyIPServiceException):  
+      ws.request(tc1['path'], tc1['other_params'])
+
+    tc2 = {
+      'path': 'ip-address-lookup',
+      'other_params': {},
+      'request_response': b'dummy response',
+      'expected_msg': 'Could not complete request "ip-address-lookup".',
+    }
+    ws = WhatIsMyIPService('apikeyisthisstring')
+    type(MockRequestsGet.return_value).content = PropertyMock(return_value=tc2['request_response'])
+    type(MockRequestsGet.return_value).status_code = PropertyMock(return_value=500)
+    with self.assertRaises(WhatIsMyIPServiceException):  
+      ws.request(tc2['path'], tc2['other_params'])
+
+    tc3 = {
+      'path': 'ip-address-lookup',
+      'other_params': {},
+      'request_response': b'{"malformed:json"',
+      'expected_msg': 'Invalid JSON',
+    }
+    ws = WhatIsMyIPService('apikeyisthisstring')
+    type(MockRequestsGet.return_value).content = PropertyMock(return_value=tc3['request_response'])
+    type(MockRequestsGet.return_value).status_code = PropertyMock(return_value=200)
+    with self.assertRaises(WhatIsMyIPServiceException):  
+      ws.request(tc3['path'], tc3['other_params'])
+   
+  @patch('iplocationchanger.service.whatismyip_service.WhatIsMyIPService.get_ip')
+  @patch('iplocationchanger.service.whatismyip_service.WhatIsMyIPService.get_location_from_ip')
+  def test_validate_connection(self, MockGetLocationFromIP, MockGetIP):
+    test_cases_valid = [
       {
-        'get_ip': { 
-          'success': True,
-          'msg': '',
-         },
-        'get_location': {
-          'success': True,
-          'msg': '',
-        },
-        'extract_location_response': 'DE',
-        'country_code': 'de',
-        'expected': {
-          'success': True,
-          'msg': 'success',
-        },
-        'test_case': 'True, DE de',
+        'returned_location': 'DE',
+        'expected_country_code': 'DE',
       },
       {
-        'get_ip': { 
-          'success': False,
-          'msg': 'error occurred',
-         },
-        'get_location': {
-          'success': True,
-          'msg': '',
-        },
-        'extract_location_response': 'DE',
-        'country_code': 'de',
-        'expected': {
-          'success': False,
-          'msg': 'could not obtain IP address: error occurred',
-        },
-        'test_case': 'False, IP address',
+        'returned_location': 'US',
+        'expected_country_code': 'us',
       },
       {
-        'get_ip': { 
-          'success': True,
-          'msg': '',
-         },
-        'get_location': {
-          'success': False,
-          'msg': 'service error',
-        },
-        'extract_location_response': 'DE',
-        'country_code': 'de',
-        'expected': {
-          'success': False,
-          'msg': 'could not obtain location: service error',
-        },
-        'test_case': 'False, location',
-      },
-      {
-        'get_ip': { 
-          'success': True,
-          'msg': '',
-         },
-        'get_location': {
-          'success': True,
-          'msg': '',
-        },
-        'extract_location_response': 'FR',
-        'country_code': 'DE',
-        'expected': {
-          'success': False,
-          'msg': 'DE not FR',
-        },
-        'test_case': 'False, FR DE',
+        'returned_location': 'ar',
+        'expected_country_code': 'ar',
       },
     ]
 
-    for tc in test_cases:
-      wms = WhatIsMyIPService('api_key')
+    test_cases_invalid = [
+      {
+        'returned_location': 'US',
+        'expected_country_code': 'DE',
+      },
+      {
+        'returned_location': 'br',
+        'expected_country_code': 'ar',
+      },
+    ]
 
-      wms.get_ip = Mock(return_value=(
-        tc['get_ip']['success'],
-        tc['get_ip']['msg'],
-      ))
-      wms.get_location_from_ip = Mock(return_value=(
-        tc['get_location']['success'],
-        tc['get_location']['msg'],
-      ))
+    MockGetIP.return_value = ''
 
-      UtilsMock.extract_location = Mock(return_value=tc['extract_location_response'])
+    for tc in test_cases_valid:
+      MockGetLocationFromIP.return_value = tc['returned_location']
+      ws = WhatIsMyIPService('apikeyisthisstring')
+      # should not raise exception
 
-      success, msg = wms.validate_connection(tc['country_code'])
+    for tc in test_cases_invalid:
+      MockGetLocationFromIP.return_value = tc['returned_location']
+      with self.assertRaises(WhatIsMyIPServiceException):
+        ws.validate_connection(tc['expected_country_code'])
 
-      self.assertEqual(
-        tc['expected']['success'],
-        success,
-      )
-      self.assertEqual(
-        tc['expected']['msg'],
-        msg,
-      )
+  @patch('iplocationchanger.service.whatismyip_service.WhatIsMyIPService.request')
+  def test_get_ip(self, MockRequest):
+    test_cases_valid = [
+      {
+        'returned_body': {'ip_address':'95.223.119.45'},
+        'expected_ip': '95.223.119.45',
+      },
+      {
+        'returned_body': {'ip_address':'192.168.10.2'},
+        'expected_ip': '192.168.10.2',
+      },
+    ]
+
+    test_cases_invalid = [
+      { 
+        'returned_body': {},
+      },
+      { 
+        'returned_body': {'body': '192.168.0.100'},
+      },
+    ]
+
+    for tc in test_cases_valid:
+      MockRequest.return_value = tc['returned_body']
+      ws = WhatIsMyIPService('apikeyisthisstring')
+      res = ws.get_ip()
+      MockRequest.assert_called_with('ip')
+      self.assertEqual(res, tc['expected_ip'])
+    
+    for tc in test_cases_invalid:
+      MockRequest.return_value = tc['returned_body']
+      with self.assertRaises(WhatIsMyIPServiceException):
+        ws.get_ip()
+
+  @patch('iplocationchanger.service.whatismyip_service.WhatIsMyIPService.request')
+  def test_get_location_from_ip(self, MockRequest):
+    test_cases_valid = [
+      {
+        'requested_ip': '95.223.119.45',
+        'returned_body': {
+          'ip_address_lookup': [{
+            'status': 'ok',
+            'ip': '95.223.119.45',
+            'country': 'DE',
+          }],
+        },
+        'expected_location': 'DE',
+      },
+      {
+        'requested_ip': '192.168.20.12',
+        'returned_body': {
+          'ip_address_lookup': [{
+            'status': 'ok',
+            'ip': '192.168.20.12',
+            'country': 'TR',
+          }],
+        },
+        'expected_location': 'TR',
+      },
+    ]
+
+    test_cases_invalid = [
+      { 
+        'requested_ip': '95.223.119.45',
+        'returned_body': {},
+      },
+      { 
+        'requested_ip': '192.168.20.12',
+        'returned_body': {'body': 'blank'},
+      },
+    ]
+
+    for tc in test_cases_valid:
+      MockRequest.return_value = tc['returned_body']
+      ws = WhatIsMyIPService('apikeyisthisstring')
+      res = ws.get_location_from_ip(tc['requested_ip'])
+      MockRequest.assert_called_with('ip-address-lookup', {'input': tc['requested_ip']})
+      self.assertEqual(res, tc['expected_location'])
+    
+    for tc in test_cases_invalid:
+      MockRequest.return_value = tc['returned_body']
+      with self.assertRaises(WhatIsMyIPServiceException):
+        ws.get_location_from_ip(tc['requested_ip'])
