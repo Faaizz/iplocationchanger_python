@@ -1,4 +1,7 @@
 # IP Location Changer
+
+![tests](https://github.com/faaizz/iplocationchanger_python/actions/workflows/test.yaml/badge.svg)
+
 Reliable IP location changer using [OpenVPN](https://openvpn.net/) and [WhatIsMyIP](https://www.whatismyip.com/).
 
 This package allows changing the IP of the host machine by using openvpn configuration files (and optionally credentials), and verifying the IP location change using WhatIsMyIP.
