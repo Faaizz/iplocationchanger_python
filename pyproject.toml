@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iplocationchanger"
-version = "0.0.3"
+version = "0.1.0"
 description = "Reliable IP location changer using OpenVPN and WhatIsMyIP"
 readme = "README.md"
 authors = [{ name = "Faizudeen Kajogbola", email = "faizudeen@codecreek.cc" }]

@@ -16,12 +16,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Prepare project
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pip-tools
-          pip-compile pyproject.toml
-          pip-sync
       - name: Deploy project
         run: |
           python -m pip install build twine
