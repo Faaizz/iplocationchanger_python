@@ -1,6 +1,7 @@
 # IP Location Changer
 
 ![tests](https://github.com/faaizz/iplocationchanger_python/actions/workflows/test.yaml/badge.svg)
+[![PyPI version](https://badge.fury.io/py/iplocationchanger.svg)](https://badge.fury.io/py/iplocationchanger)
 
 Reliable IP location changer using [OpenVPN](https://openvpn.net/) and [WhatIsMyIP](https://www.whatismyip.com/).
 
